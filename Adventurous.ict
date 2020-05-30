@@ -25,6 +25,22 @@ notes: |-
   Localizations:
       German: Baka-Dono-Desu
       French: Nightwind42
+
+  Save button:
+      this.addChild(ct.game.addUIElement2('button', {width:80, height:35, x:880, y:0, text:'Save/Load', style:ct.styles.get('Menu2'), tex:'button', border:{width:3}, borderRadius: 8}, {step(element){
+          if(ct.pointer.hovers(element.hitbox) && ct.actions.click.pressed){
+              console.log(localStorage.data, ct.game.data)
+              if(ct.game.data.party.members.length){
+                  localStorage.data = JSON.stringify(ct.game.data)
+              }else{
+                  ct.game.data = JSON.parse(localStorage.data)
+                  ct.game.drawParty()
+              }
+          }
+      }}))
+
+  Match any:
+      (.|\n)*?
   */
 libs:
   place:
@@ -50,8 +66,6 @@ libs:
       }
     toptop: >-
       <div id="UI-Overlay"></div>
-
-      <script src="https://code.jquery.com/jquery-3.5.0.min.js"></script>
 
       <script src="https://kit.fontawesome.com/26183cd244.js"
       crossorigin="anonymous"></script>
@@ -82,7 +96,7 @@ textures:
     top: 0
     bottom: 512
     uid: acefb81f-be20-45bf-ad76-be12f69536c1
-    lastmod: 1586925646714
+    lastmod: 1589839292263
     padding: 1
   - name: guildhall
     untill: 0
@@ -10333,15 +10347,15 @@ textures:
     height: 199
     offx: 0
     offy: 0
-    origname: i12a743e6-cd53-45f3-9d3e-6632dad2fba4
-    source: 'E:\CTJS\assets\UI\UI-Bottom2.png'
+    origname: i12a743e6-cd53-45f3-9d3e-6632dad2fba4.png
+    source: /Users/sc/Documents/Pictures/UI-Bottom.png
     shape: rect
-    left: 0
+    left: -190
     right: 961
     top: 0
     bottom: 199
     uid: 12a743e6-cd53-45f3-9d3e-6632dad2fba4
-    lastmod: 1587094263186
+    lastmod: 1590689222951
     padding: 1
   - name: medal_rogue
     untill: 0
@@ -10531,8 +10545,8 @@ types:
               this.char = char
           }
           if(this.parts.length){
-              for(var part of this.parts){
-                  part.kill = true
+              for(var lpart of this.parts){
+                  lpart.kill = true
               }
           }
           var layers = ct.game.classes.filter((a)=>a.id==this.char.char)[0].layers[this.char.gender]
@@ -10564,7 +10578,7 @@ types:
     uid: 33c133e1-236d-4c75-922d-9bf9079f6857
     texture: -1
     extends: {}
-    lastmod: 1587255806611
+    lastmod: 1590506135867
   - name: ColorPicker
     depth: 11
     oncreate: |
@@ -10661,22 +10675,177 @@ types:
   - name: UI-Bottom
     depth: 3
     oncreate: |-
+      this.portraits = []
+      this.log = ct.types.copy('colorPixel', 0, this.y)
+      this.log.width = 192
+      this.log.tint = 0x101010
+      this.log.depth = -10
+      this.log.labels = [[[]]]
       ct.game.drawParty = ()=>{
+          if(this.portraits.length){
+              for(var portrait of this.portraits){
+                  portrait.kill = true
+              }
+          }
           var party = ct.game.data.party
-          party.frontRow.map((a)=>{
-              var portrait = ct.types.copy('Portrait', 300, 3)
-              console.log()
-              portrait.draw(party.members.reduce((b)=>b.name==a))
-              ct.game.ui.bottom.addChild(portrait)
+          var scale = .75
+          party.frontRow.map((a, i)=>{
+              var portrait = ct.types.copy('Portrait', 240 + (480/(party.frontRow.length+1))*(i+1) - (164*scale)/2, 461)
+              portrait.depth = this.depth+1
+              portrait.scale.x = portrait.scale.y = scale
+              portrait.draw(party.members.filter((b)=>b.name==a)[0])
+              this.portraits.push(portrait)
+              this.addChild(portrait)
+          })
+          party.backRow.map((a, i)=>{
+              var portrait = ct.types.copy('Portrait', 240 + (480/(party.backRow.length+1))*(i+1) - (164*scale)/2, 461)
+              portrait.depth = this.depth+1
+              portrait.scale.x = portrait.scale.y = scale
+              portrait.draw(party.members.filter((b)=>b.name==a)[0])
+              this.portraits.push(portrait)
+              this.addChild(portrait)
           })
       }
-    onstep: ''
+      ct.game.drawLogs = ()=>{
+          if(ct.game.logs.length){
+              this.log.labels.map(a=>a.map(b=>b.map(c=>c.kill=true)))
+              this.log.labels = [[[]]]
+              var y = 5
+              ct.game.logs.map(log=>{
+                  var x = 5
+                  var oldI
+                  log.split(/(\[[0-9a-zA-Z_-]*:[^\]-]*]){1}/g).map(a=>a.trim()).filter(Boolean).map(part=>{
+                      var matched = ct.game.match(part, /\[(?<type>[0-9a-zA-Z_-]*):(?<text>[^\]-]*)]/g)[0] || false
+                      var parsedPart = {text:part}
+                      var parseGuide = {
+                          party:{color:0x34b1eb, text(p){return `Party with ID: ${matched.groups.text}`}},
+                          status:{color:0x1b822c}
+                      }
+                      if(matched){
+                          if(matched.groups.type.match(/0x[0-9a-fA-F]{6}/)){
+                              parsedPart.text = matched.groups.text
+                              parsedPart.color = matched.groups.type
+                          }else{
+                              if(parseGuide[matched.groups.type]){
+                                  parsedPart.text = parseGuide[matched.groups.type].text ? parseGuide[matched.groups.type].text(matched.groups) : matched.groups.text
+                                  parsedPart.color = parseGuide[matched.groups.type].color
+                                  parsedPart.info = parseGuide[matched.groups.type].info
+                              }else{
+                                  parsedPart.text = 'Error'
+                                  parsedPart.color = 0xFF0000
+                              }
+                          }
+                      }
+                      return parsedPart
+                  }).map((part, i)=>{
+                      console.log(part)
+                      var style = ct.styles.get('Log', true)
+                      style.fill = part.color || style.fill
+                      part.text.split(' ').map(word=>{
+                          function getWidth(text){
+                              var doesWrap = style.wordWrap
+                              style.wordWrap = false
+                              var width = PIXI.TextMetrics.measureText(text, new PIXI.TextStyle(style)).width
+                              style.wordWrap = doesWrap
+                              return width
+                          }
+                          var currentLog = this.log.labels[this.log.labels.length-1]
+                          var currentLine = currentLog[currentLog.length-1]
+                          var currentLabel = currentLine[currentLine.length-1]
+                          var checkText = currentLine.map(a=>a.text).join(' ').split(' ')
+                          checkText.push(word)
+                          checkText = checkText.join(' ')
+                          var newLine = getWidth(checkText) > style.wordWrapWidth
+                          if(i != oldI || !currentLabel || newLine){
+                              if(newLine){
+                                  x = 5
+                                  y += style.lineHeight
+                                  currentLog.push([])
+                                  currentLine = currentLog[currentLog.length-1]
+                              }
+                              currentLabel = ct.game.addUIElement2('label', {x:x, y:y, depth:-9, text:word, style:style})
+                              this.log.addChild(currentLabel)
+                              currentLine.push(currentLabel)
+                          }else{
+                              currentLabel.text += ' ' + word
+                          }
+                          x = getWidth(currentLabel.text + ' ')
+                          oldI = i
+                      })
+                  })
+                  y += 5
+              })
+              console.log('Parsed:',this.log.labels.map(a=>a.map(b=>b.map(c=>c.text))))
+              // this.log.logs.map(a=>a.kill=true)
+              // this.log.logs = []
+              // var y = this.log.y - 20
+              // for(var [h, log] of ct.game.logs.entries()){
+              //     var parsed = [[]]
+              //     var testStyle = ct.styles.get('Log', true)
+              //     testStyle.wordWrap = false
+              //     for(var [i, line] of log.entries()){
+              //         var prevFormat
+              //         for(var [j, word] of line.entries()){
+              //             var style = ct.styles.get('Log',true)
+              //             if(line.join(' ').match(/-\[[0-9a-zA-Z_-]*:[^\]-]*]-/)){
+              //                 console.log(word, /-\[([0-9a-zA-Z_-]*):/.exec(word))
+              //                 var link = {kind:word.match(/-\[([0-9a-zA-Z_-]*):/)[1], id:word.match(/-\[[0-9a-zA-Z_-]*:([^\]-]*)]-/)[1]}
+              //                 style.fill = link.kind.match(/0x[[:xdigit:]]{6}/) ? link.kind : 0x50A0FF
+              //                 word = word.replace(/-\[[a-z]*:/,'')
+              //                 word = word.replace(']-','')
+              //             }
+              //             if(!parsed[parsed.length-1][0]){
+              //                 y += (style.lineHeight + 5)
+              //                 parsed[parsed.length-1].push(ct.game.addUIElement2('label', {x:3, y:y, text:'', depth:-9, style:style}))
+              //             }
+              //             var currentLabel = parsed[parsed.length-1][parsed[parsed.length-1].length-1]
+              //             if(prevFormat === undefined || ((line.join(' ').match(/(-\[[0-9a-zA-Z_-]*:[^\]-]*]-){1}/g) ? true : false) === prevFormat)){
+              //                 currentLabel.text += ((currentLabel.text ? ' ' : '') + word)
+              //             }else{
+              //                 parsed[parsed.length-1].push(ct.game.addUIElement2('label', {x:3+PIXI.TextMetrics.measureText(parsed[parsed.length-1].map(a=>a.text).join(' ')+' ', new PIXI.TextStyle(testStyle)).width, y:y, text:word, depth:-9, style:style}))
+              //             }
+              //             currentLabel = parsed[parsed.length-1][parsed[parsed.length-1].length-1]
+              //             if(PIXI.TextMetrics.measureText(parsed[parsed.length-1].map(a=>a.text).join(' '), new PIXI.TextStyle(testStyle)).width > style.wordWrapWidth){
+              //                 y += style.lineHeight
+              //                 currentLabel.text = currentLabel.text.split(' ').slice(0, -1).join(' ').trim()
+              //                 if(!currentLabel.text){
+              //                     currentLabel.kill = true
+              //                     parsed[parsed.length-1].pop()
+              //                 }
+              //                 parsed.push([ct.game.addUIElement2('label', {x:3, y:y, text:word, style:style, depth:-9})])
+              //             }
+              //             prevFormat = line.join(' ').match(/(-\[[^\]-]*]-){1}/g) ? true : false
+              //         }
+              //     }
+              //     console.log('parsed:',parsed)
+              //     parsed.map(a=>a.map(b=>{
+              //         this.log.logs.push(b)
+              //     }))
+              // }
+          }
+      }
+      ct.game.clearLogs = ()=>{
+          ct.game.logs = []
+          this.log.logs.map(a=>a.kill=true)
+          this.log.logs = []
+      }
+      ct.game.drawLogs()
+      ct.game.drawParty()
+    onstep: |-
+      if(ct.pointer.hovers(this.log)){
+          var scrollSpeed = 5
+          if((this.log.y + (ct.actions.scroll.value * scrollSpeed)) < (this.y)+scrollSpeed){
+              this.log.y += (ct.actions.scroll.value * scrollSpeed)
+              this.log.labels.map(a=>a.y += (ct.actions.scroll.value * scrollSpeed))
+          }
+      }
+      this.log.height = ct.roomHeight - this.log.y
     ondraw: ''
     ondestroy: ''
     uid: a5847cf4-5e0e-4e62-a414-cb5626b58e70
     texture: 12a743e6-cd53-45f3-9d3e-6632dad2fba4
     extends: {}
-    lastmod: 1587086142746
+    lastmod: 1590505278049
   - name: UI-General
     depth: 0
     oncreate: 'this.elements = []'
@@ -10751,52 +10920,31 @@ styles:
       x: 3
       'y': 2
       blur: 10
-    lastmod: 1587526131354
+    lastmod: 1590512293549
+  - name: Log
+    uid: a96e8ef1-7b03-4d6d-9301-c4480d788e33
+    origname: sc4480d788e33
+    font:
+      family: monospace
+      size: 12
+      weight: 400
+      italic: false
+      wrap: true
+      wrapPosition: 182
+      lineHeight: 0
+      halign: left
+    lastmod: 1590537214826
+    fill:
+      type: '0'
 rooms:
   - name: Game
-    oncreate: |-
-      ct.game.ui.bottom = ct.types.copy('UI-Bottom', 0, 461)
-      this.char = 0
-      this.canChange = 10
-      this.portraits = []
-    onstep: |-
-      if(!this.portraits.length){
-          // this.portraits.push(ct.game.spawnPortrait(ct.game.classes[Math.floor(this.char/2)].id, this.char % 2 ? 'male' : 'female', 398, 465))
-          // var space = 140
-          // this.portraits.push(ct.game.spawnPortrait('guard', 'male', 398, 460))
-          // this.portraits.push(ct.game.spawnPortrait('guard', 'male', (398 + space), 460))
-          // this.portraits.push(ct.game.spawnPortrait('guard', 'male', (398 - space), 460))
-          // this.portraits.push(ct.game.spawnPortrait('guard', 'male', (398 + (space/2)), 500))
-          // this.portraits.push(ct.game.spawnPortrait('guard', 'male', (398 - (space/2)), 500))
-          // this.chooser = ct.types.copy('ColorPicker', 150, 10)
-          // this.chooser.callback = function(color){
-          //     console.log(color)
-          // }
-      }
-      if(ct.actions.nextChar.down && this.canChange > 10){
-          this.char = this.char+ct.actions.nextChar.value
-          if(this.char > (ct.game.classes.length*2)-1){
-              this.char = 0
-          }
-          if(this.char < 0){
-              this.char = (ct.game.classes.length*2)-1
-          }
-          this.canChange = 0
-          for(var i=0;i<this.portraits.length;i++){
-              this.portraits[i].kill = true
-              this.portraits.splice(i, 1)
-          }
-      }
-
-      this.canChange += 1
+    oncreate: ''
+    onstep: ''
     ondraw: ''
     onleave: ''
     width: 960
     height: 660
-    backgrounds:
-      - depth: -10
-        texture: 8b765cba-45d1-4785-90c8-9305d499f05d
-        extends: {}
+    backgrounds: []
     copies:
       - x: 700
         'y': 100
@@ -10808,47 +10956,67 @@ rooms:
     thumbnail: e1551136eae2
     gridX: 64
     gridY: 64
-    lastmod: 1587091684851
+    lastmod: 1590787100159
   - name: charEdit
-    oncreate: |-
-      this.newChar = (type)=>{
-          ct.game.ui.leftCenter = ct.types.copy('UI-General', 10, 40)
-          ct.game.ui.leftCenter.depth = 10
-          ct.game.ui.leftCenter.addChild(ct.game.nineSlice('UI-General', 5,5,5,5, {x:0, y:0, width: 350, height:500, alpha:.95}))
-          ct.game.ui.leftCenter.addChild(ct.game.addUIElement2('label', {x:85, y:10, text:'Choose a Class:', style:ct.styles.get('Menu1')}))
-          this.selectedArchetype = type || false
-          this.selectedChar = false
-          Array({name:'fighter', x:26, y:100, lx:29},{name:'rogue', x:145, y:100, lx:153},{name:'spellcaster', x:260, y:100, lx:250}).map((medalInfo)=>{
-              var medal = ct.game.addUIElement2('img', {x:medalInfo.x, y:medalInfo.y, width:82, height:82, depth:10, alpha:0, tex:`medal_${medalInfo.name}`}, {
-                  step:(element)=>{
-                      if(ct.pointer.hovers(element.hitbox)){
-                          if(!element.highlight){
-                              element.highlight = ct.game.addUIElement2('img', {x:medalInfo.x, y:medalInfo.y, width:82, height:82, depth:10, alpha:.5, tex:'medal_outline'})
-                              ct.game.ui.leftCenter.addChild(element.highlight)
-                          }
-                          if(ct.actions.click.pressed){
-                              this.selectedArchetype = medalInfo.name
-                              this.loadClasses(medalInfo.name)
-                          }
-                      }else{
-                          if(element.highlight && this.selectedArchetype != medalInfo.name){
-                              element.highlight.kill = true
-                              element.highlight = false
-                          }
+    oncreate: >-
+      ct.game.ui.leftCenter = ct.types.copy('UI-General', 10, 40)
+
+      ct.game.ui.leftCenter.depth = 10
+
+      ct.game.ui.leftCenter.addChild(ct.game.nineSlice('UI-General', 5,5,5,5,
+      {x:0, y:0, width: 350, height:500, alpha:.95}))
+
+      ct.game.ui.leftCenter.addChild(ct.game.addUIElement2('label', {x:85, y:10,
+      text:'Choose a Class:', style:ct.styles.get('Menu1')}))
+
+      this.selectedArchetype = false
+
+      this.selectedChar = false
+
+      Array({name:'fighter', x:26, y:100, lx:29},{name:'rogue', x:145, y:100,
+      lx:153},{name:'spellcaster', x:260, y:100, lx:250}).map((medalInfo)=>{
+          var medal = ct.game.addUIElement2('img', {x:medalInfo.x, y:medalInfo.y, width:82, height:82, depth:10, alpha:0, tex:`medal_${medalInfo.name}`}, {
+              step:(element)=>{
+                  if(ct.pointer.hovers(element.hitbox)){
+                      if(!element.highlight){
+                          element.highlight = ct.game.addUIElement2('img', {x:medalInfo.x, y:medalInfo.y, width:82, height:82, depth:10, alpha:.5, tex:'medal_outline'})
+                          ct.game.ui.leftCenter.addChild(element.highlight)
                       }
-                      if(element.highlight){
-                          element.highlight.hitbox.alpha = this.selectedArchetype == medalInfo.name ? 1 : .5
+                      if(ct.actions.click.pressed){
+                          this.selectedArchetype = medalInfo.name
+                          this.loadClasses(medalInfo.name)
+                      }
+                  }else{
+                      if(element.highlight && this.selectedArchetype != medalInfo.name){
+                          element.highlight.kill = true
+                          element.highlight = false
                       }
                   }
-              })
-              this[medalInfo.name+'Medal'] = medal
-              ct.game.ui.leftCenter.addChild(medal, ct.game.addUIElement2('label', {x:medalInfo.lx, y:medalInfo.y - 55, depth:10, text:medalInfo.name.toUpperCase(), style:ct.styles.get('Menu2')}))
+                  if(element.highlight){
+                      element.highlight.hitbox.alpha = this.selectedArchetype == medalInfo.name ? 1 : .5
+                  }
+              }
+          })
+          this[medalInfo.name+'Medal'] = medal
+          ct.game.ui.leftCenter.addChild(medal, ct.game.addUIElement2('label', {x:medalInfo.lx, y:medalInfo.y - 55, depth:10, text:medalInfo.name.toUpperCase(), style:ct.styles.get('Menu2')}))
+      })
+
+
+      this.boxes = []
+
+      this.boxOutlines = []
+
+      this.boxTitles = []
+
+
+      this.editMember = (name)=>{
+          var member = ct.game.data.party.members[ct.game.data.party.members.map(a=>a.name).indexOf(name)]
+          this.editChar(member, (char)=>{
+              member = char
+              ct.game.drawParty()
           })
       }
-      this.newChar()
-      this.boxes = []
-      this.boxOutlines = []
-      this.boxTitles = []
+
 
       this.editChar = (char, callback)=>{
           this.selectedBox = false
@@ -10857,7 +11025,7 @@ rooms:
                   child.kill = true
               }
           }
-          if(!char){
+          if(char == 'new'){
               char = {
                   name:'',
                   char:this.selectedChar,
@@ -10975,10 +11143,14 @@ rooms:
                   this.boxTitles = []
               }
               var index = -1
-              //console.log(ct.game.classes.filter((b)=>b.id == char.char)[0].layers[char.gender])
+              // console.log(ct.game.classes, char)
+              // console.log(ct.game.classes.filter((b)=>b.id == char.char)[0])
               for(var part of Object.keys(parts).map((a)=>ct.game.classes.filter((b)=>b.id == char.char)[0].layers[char.gender].map((b)=>(a==b.part.replace(' ','').toLowerCase() ? {part:a, text:`${b.part.split(' ')[0]}:`, def:b.def, tint:b.tint} : false)).filter(Boolean)[0]).filter(Boolean)){
                   if(!part.tint){
                       delete part.tint
+                  }
+                  if(char.colors[part.part]){
+                      part.tint = char.colors[part.part]
                   }
                   if(!part.part.includes(2) && !part.part.includes(3) && !part.part.includes(4)){
                       index++
@@ -11007,6 +11179,7 @@ rooms:
           this.drawBoxes()
       }
 
+
       this.loadClasses = (archetype)=>{
           if(this.radioTexts && this.radioTexts.length){
               for(var radioText of this.radioTexts){
@@ -11023,6 +11196,7 @@ rooms:
           })
       }
 
+
       this.loadClass = (char)=>{
           if(!this.classPreviewF && !this.classPreviewM){
               this.classPreviewM = ct.game.addUIElement2('img', {x:13, y:180, depth:10, tex:`${char}_male`, width:128, height:256, alpha:.8})
@@ -11035,14 +11209,10 @@ rooms:
               this.classPreviewT.label.text = ct.game.classes.filter((a)=>a.id==char)[0].description
           }
           ct.game.ui.leftCenter.addChild(ct.game.addUIElement2('button', {width:80, height:35, x:125, y:450, text:'Confirm', style:ct.styles.get('Menu2'), tex:'button', border:{width:3}, borderRadius: 8}, {onClick:(element)=>{
-              this.editChar(false, (char)=>{
-                  console.log(char)
-                  ct.game.data.party.frontRow.push(char.name)
+              this.editChar('new', (char)=>{
+                  ct.game.data.party.frontRow.push(char.name)//Eventaully change this block to allow back to back creation assuming they have enough tokens instead.
                   ct.game.data.party.members.push(char)
-                  ct.game.drawParty()
-                  if(ct.game.data.party.frontRow.length<3){
-                      ct.rooms.switch('charEdit')
-                  }
+                  ct.game.goToRoom(ct.game.data.party.members.length<=3 ? 'charEdit' : 'game', ct.game.drawParty)
               })
           }}))
       }
@@ -11086,7 +11256,8 @@ rooms:
     backgrounds:
       - depth: 0
         texture: 8b765cba-45d1-4785-90c8-9305d499f05d
-        extends: {}
+        extends:
+          repeat: no-repeat
     copies: []
     tiles:
       - depth: -10
@@ -11095,7 +11266,7 @@ rooms:
     thumbnail: '366796033872'
     gridX: 64
     gridY: 64
-    lastmod: 1589042815736
+    lastmod: 1590787097825
   - name: Test
     oncreate: >-
       this.addChild(ct.game.nineSlice('UI-General', 5,5,5,5, {x:0, y:0, width:
@@ -11180,6 +11351,10 @@ actions:
       - code: keyboard.PageDown
       - code: keyboard.Numpad2
       - code: gamepad.LStickY
+  - name: scroll
+    methods:
+      - code: mouse.Wheel
+      - code: gamepad.LStickY
 starting: 0
 settings:
   minifyhtmlcss: false
@@ -11202,43 +11377,19 @@ settings:
     invertPreloaderScheme: true
   desktopMode: maximized
 scripts:
-  - name: GameData
-    code: "//match Any (.|\\n)*?\nconsole.log('Loading game data')\nvar data\nif(localStorage.data){\n    data = localStorage.data\n}else{\n    setTimeout(()=>{\n        ct.game.newGame()\n    })\n}\nct.game = {\n    ui: {\n        overlay:[],\n        elements:[],\n        create(type, options, callbacks){\n            var element = ct.types.copy('Hitbox', options.x, options,y)\n            switch(type){\n                case 'label':\n                    element.label = new PIXI.Text(options.text, options.font)\n                    elements.addChild(element.label)\n                break;\n                case 'textbox':\n                break;\n                case 'radio':\n                break;\n                case 'button':\n            }\n        }\n    },\n    data: data || {\n        party:{\n            name:'',\n            leader:'',\n            frontRow:[],\n            backRow:[],\n            members:[],\n            maxSize(){\n                return this.members.reduce((a)=>a.name==this.leader).stats.cha\n            },\n        }\n    },\n    attributes:{\n        level(stat){\n            switch(true){\n                case stat <= 3:\n                return Math.floor(stat/1+1)\n                case stat <= 10:\n                return Math.floor(stat/2+2.5)\n                case stat <= 16:\n                return Math.floor(stat/3+4)\n                case stat <= 20:\n                return Math.floor(stat/5+6)\n            }\n        },\n        maxHP(char){},\n        armor(char){},\n        resist(char, tpye){},\n        inflict(char){},\n        hpRegen(char){},\n        mpRegen(char){},\n        maxMP(char){},\n        damage(char, type){},\n        criticalChance(char){},\n        criticalDamage(char){},\n        carry(char){},\n        avoid(char, type){},\n        counter(char, type){},\n        dispell(char){},\n        goldBoost(char){},\n        expBoost(char){},\n        initiative(char){},\n        rest(char){},\n        duration(char){},\n        penetrate(char){},\n        accuracy(char){},\n        authority(char){},\n        haggle(char){},\n    },\n    classes: [\n        {id: 'archer',\n            name: 'Archer',\n            description:'Archers use their bows to cripple targets from afar and are the bane of any spellcaster.',\n\t\t\tarchetype:'rogue',\n            layers: {\n                female: [\n                    { part: 'Skin', x: 24, y: -36, def: 0xFF000000 },\n                    { part: 'Eyewhite', x: 33, y: -46, def: 0xFFFFFF },\n                    { part: 'Eye', x: 31, y: -46, def: 0xFFFFFF },\n                    { part: 'Lip', x: 33, y: -75, def: 0xFFFFFF },\n                    { part: 'Accessory', x: 10, y: -4, def: 0xFFFFFF },\n                    { part: 'Trim 1', x: 1, y: 0, def: 0xFFFFFF },\n                    { part: 'Trim 2', x: 3, y: 0, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 39, y: -88, def: 0x000FFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Skin', x: 47, y: -40, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 56, y: -53, def: 0xFFFFFF },\n                    { part: 'Eye', x: 61, y: -53, def: 0xFFFFFF },\n                    { part: 'Hair', x: 48, y: -42, def: 0x0000FF },\n                    { part: 'Accessory', x: 14, y: 1, def: 0xFF00FF },\n                    { part: 'Trim 1', x: 0, y: -17, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 22, y: -114, def: 0xFFFFFF },\n                    { part: 'Trim 2', x: 35, y: -101, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'barbarian',\n            name: 'Barbarian',\n            description:'Forsaking martial techniques, barbarians prefer relying on their own brute strength and resilience to vanquish their foes.',\n\t\t\tarchetype:'fighter',\n            layers: {\n                female: [\n                    { part: 'Skin', x: 0, y: -8, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 57, y: -50, def: 0xFFFFFF },\n                    { part: 'Eye', x: 62, y: -50, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 15, y: -8, def: 0xFFFFFF },\n                    { part: 'Accessory', x: 23, y: -78, def: 0xFFFFFF },\n                    { part: 'Lip', x: 65, y: -77, def: 0xFFFFFF },\n                    { part: 'Hair', x: 0, y: 0, def: 0xFFFFFF },\n                    { part: 'Tattoo', x: 0, y: -28, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Skin', x: 2, y: -9, def: 0xFFFFFF },\n                    { part: 'Hair', x: 1, y: -1, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 78, y: -32, def: 0xFFFFFF },\n                    { part: 'Accessory', x: 1, y: -78, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 12, y: -41, def: 0xFFFFFF },\n                    { part: 'Eye', x: 11, y: -42, def: 0xFFFFFF },\n                    { part: 'Tattoo', x: 10, y: -17, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'bard',\n            name: 'Bard',\n            description:'Using their music, bards boost the abilities of the party or hinder the enemy. They use minimalistic armor so they can freely play their instrument.',\n\t\t\tarchetype:'spellcaster',\n            layers: {\n                female: [\n                    { part: 'Skin', x: 7, y: -29, def: 0xFFFFFF },\n                    { part: 'Accessory 1', x: 30, y: -16, def: 0xFFFFFF },\n                    { part: 'Accessory 3', x: 69, y: 0, def: 0xFFFFFF },\n                    { part: 'Accessory 2', x: 68, y: -22, def: 0xFFFFFF },\n                    { part: 'Hair 1', x: 2, y: -7, def: 0xFFFFFF },\n                    { part: 'Hair 2', x: 12, y: -7, def: 0xFFFFFF },\n                    { part: 'Lip', x: 48, y: -72, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 36, y: -46, def: 0xFFFFFF },\n                    { part: 'Eye', x: 39, y: -46, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 27, y: -87, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Skin', x: 29, y: -23, def: 0xFFFFFF },\n                    { part: 'Accessory 1', x: 39, y: -13, def: 0xFFFFFF },\n                    { part: 'Accessory 2', x: 42, y: -16, def: 0xFFFFFF },\n                    { part: 'Hair 1', x: 13, y: 0, def: 0xFFFFFF },\n                    { part: 'Hair 2', x: 14, y: -6, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 43, y: -35, def: 0xFFFFFF },\n                    { part: 'Eye', x: 46, y: -35, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 4, y: -61, def: 0xFFFFFF },\n                    { part: 'Accessory 3', x: 24, y: -66, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'berserker',\n            name: 'Berserker',\n            description:'A berserker\\'s rage is so great that they can rip apart a massive army single-handledly.',\n\t\t\tarchetype:'fighter',\n            layers: {\n                female: [\n                    { part: 'Skin', x: 22, y: -17, def: 0xFFFFFF },\n                    { part: 'Mouth', x: 63, y: -61, def: 0xFFFFFF },\n                    { part: 'Lip', x: 63, y: -54, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 58, y: -36, def: 0xFFFFFF },\n                    { part: 'Eye', x: 62, y: -35, def: 0xFFFFFF },\n                    { part: 'Hair', x: 0, y: -1, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 0, y: -74, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 0, y: -58, def: 0xFFFFFF },\n                    { part: 'Tattoo', x: 53, y: -21, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Clothes', x: 27, y: -90, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 0, y: -42, def: 0xFFFFFF },\n                    { part: 'Trim 1', x: 6, y: -52, def: 0xFFFFFF },\n                    { part: 'Trim 2', x: 0, y: -35, def: 0xFFFFFF },\n                    { part: 'Skin', x: 37, y: -15, def: 0xFFFFFF },\n                    { part: 'Mouth', x: 47, y: -49, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 44, y: -30, def: 0xFFFFFF },\n                    { part: 'Eye', x: 46, y: -32, def: 0xFFFFFF },\n                    { part: 'Tattoo', x: 41, y: -41, def: 0xFFFFFF },\n                    { part: 'Hair', x: 24, y: -2, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'channeler',\n            name: 'Channeler',\n            description:'',\n\t\t\tarchetype:'spellcaster',\n            layers: {\n                female: [\n                    { part: 'Skin', x: 19, y: -29, def: 0xFFFFFF },\n                    { part: 'Hair', x: 11, y: 0, def: 0xFFFFFF },\n                    { part: 'Tattoo', x: 43, y: -23, def: 0xFFFFFF },\n                    { part: 'Mouth', x: 75, y: -67, def: 0xFFFFFF },\n                    { part: 'Lip', x: 73, y: -64, def: 0xFFFFFF },\n                    { part: 'Trim', x: 0, y: -34, def: 0xFFFFFF },\n                    { part: 'Accessory', x: 37, y: -12, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 44, y: -42, def: 0xFFFFFF },\n                    { part: 'Eye', x: 56, y: -37, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Skin', x: 0, y: -55, def: 0xFFFFFF },\n                    { part: 'Hair', x: 14, y: 0, def: 0xFFFFFF },\n                    { part: 'Mouth', x: 60, y: -93, def: 0xFFFFFF },\n                    { part: 'Tattoo', x: 38, y: -58, def: 0xFFFFFF },\n                    { part: 'Trim', x: 0, y: -32, def: 0xFFFFFF },\n                    { part: 'Accessory', x: 32, y: -37, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 16, y: -55, def: 0xFFFFFF },\n                    { part: 'Eye', x: 48, y: -65, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'engineer',\n            name: 'Engineer',\n            description:'Engineers work efficiently and prefer to fight using tools or their constructed machinery.',\n\t\t\tarchetype:'rogue',\n            layers: {\n                female: [\n                    { part: 'Skin', x: 21, y: -23, def: 0xFFFFFF },\n                    { part: 'Lip', x: 44, y: -68, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 36, y: -39, def: 0xFFFFFF },\n                    { part: 'Eye', x: 39, y: -40, def: 0xFFFFFF },\n                    { part: 'Clothes 2', x: 62, y: -34, def: 0xFFFFFF },\n                    { part: 'Trim 1', x: 46, y: -35, def: 0xFFFFFF },\n                    { part: 'Accessory', x: 1, y: -1, def: 0xFFFFFF },\n                    { part: 'Trim 2', x: 58, y: -1, def: 0xFFFFFF },\n                    { part: 'Hair', x: 12, y: -24, def: 0xFFFFFF },\n                    { part: 'Clothes 1', x: 45, y: -53, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Skin', x: 3, y: -22, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 64, y: -31, def: 0xFFFFFF },\n                    { part: 'Eye', x: 70, y: -31, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 4, y: -82, def: 0xFFFFFF },\n                    { part: 'Trim', x: 46, y: -17, def: 0xFFFFFF },\n                    { part: 'Accessory 2', x: 49, y: 9, def: 0xFFFFFF },\n                    { part: 'Hair', x: 44, y: -26, def: 0xFFFFFF },\n                    { part: 'Accessory 1', x: 0, y: -1, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'evoker',\n            name: 'Evoker',\n            description:'Evokers are powerful spellcasters, masters of the elements. Manipulating elements, evokers can deal great amount of damage to their enemies.',\n\t\t\tarchetype:'spellcaster',\n            layers: {\n                female: [\n                    { part: 'Skin', x: 0, y: -32, def: 0xFFFFFF },\n                    { part: 'Lip', x: 45, y: -65, def: 0xFFFFFF },\n                    { part: 'Eye', x: 41, y: -40, def: 0xFFFFFF },\n                    { part: 'Tattoo', x: 37, y: -45, def: 0xFFFFFF },\n                    { part: 'Mouth', x: 47, y: -69, def: 0xFFFFFF },\n                    { part: 'Accessory', x: 11, y: 0, def: 0xFFFFFF },\n                    { part: 'Trim 1', x: 36, y: 0, def: 0xFFFFFF },\n                    { part: 'Trim 2', x: 49, y: -15, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Skin', x: 4, y: -45, def: 0xFFFFFF },\n                    { part: 'Tattoo', x: 47, y: -46, def: 0xFFFFFF },\n                    { part: 'Mouth', x: 63, y: -78, def: 0xFFFFFF },\n                    { part: 'Eye', x: 52, y: -52, def: 0xFFFFFF },\n                    { part: 'Accessory', x: 1, y: -13, def: 0xFFFFFF },\n                    { part: 'Trim 2', x: 10, y: -49, def: 0xFFFFFF },\n                    { part: 'Trim 1', x: 18, y: 0, def: 0xFFFFFF },\n                    { part: 'Trim 3', x: 60, y: -26, def: 0xFFFFFF },\n                    { part: 'Trim 4', x: 63, y: -122, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'guard',\n            name: 'Guard',\n            description:'Guards have powerful defensive skills, they are trained to protect others even if it means putting their own lives in harm\\'s way.',\n\t\t\tarchetype:'fighter',\n            layers: {\n                female: [\n                    { part: 'Clothes 1', x: 0, y: -7, def: 0xFFFFFF },\n                    { part: 'Trim 1', x: 24, y: -26, def: 0xFFFFFF },\n                    { part: 'Clothes 3', x: 43, y: -107, def: 0xFFFFFF },\n                    { part: 'Clothes 2', x: 24, y: -63, def: 0xFFFFFF },\n                    { part: 'Trim 2', x: 50, y: 0, def: 0xFFFFFF },\n                    { part: 'Skin', x: 36, y: -51, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 38, y: -59, def: 0xFFFFFF },\n                    { part: 'Eye', x: 41, y: -61, def: 0xFFFFFF },\n                    { part: 'Lip', x: 46, y: -88, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Clothes 1', x: 0, y: -29, def: 0xFFFFFF },\n                    { part: 'Trim 1', x: 0, y: -45, def: 0xFFFFFF },\n                    { part: 'Trim 3', x: 53, y: -130, def: 0xFFFFFF },\n                    { part: 'Trim 2', x: 24, y: -1, def: 0xFFFFFF },\n                    { part: 'Skin', x: 73, y: -75, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 78, y: -80, def: 0xFFFFFF },\n                    { part: 'Eye', x: 83, y: -80, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'healer',\n            name: 'Healer',\n            description:'Healers have dedicated their lives to helping others. They can heal all kind of body ailments.',\n\t\t\tarchetype:'spellcaster',\n            layers: {\n                female: [\n                    { part: 'Skin', x: 26, y: -6, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 47, y: -29, def: 0xFFFFFF },\n                    { part: 'Eye', x: 52, y: -29, def: 0xFFFFFF },\n                    { part: 'Lip', x: 57, y: -55, def: 0xFFFFFF },\n                    { part: 'Hair', x: 9, y: -1, def: 0xFFFFFF },\n                    { part: 'Accessory', x: 30, y: -60, def: 0xFFFFFF },\n                    { part: 'Clothes 1', x: 1, y: -68, def: 0xFFFFFF },\n                    { part: 'Clothes 2', x: 10, y: -11, def: 0xFFFFFF },\n                    { part: 'Trim', x: 39, y: -66, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Skin', x: 28, y: -6, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 57, y: -24, def: 0xFFFFFF },\n                    { part: 'Eye', x: 63, y: -24, def: 0xFFFFFF },\n                    { part: 'Hair', x: 1, y: 0, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 14, y: -66, def: 0xFFFFFF },\n                    { part: 'Trim', x: 19, y: -16, def: 0xFFFFFF },\n                    { part: 'Accessory', x: 36, y: -56, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'illusionist',\n            name: 'Illusionist',\n            description:'Illusionists are spellcasters that specialize in mental exercise and spectacular displays, meant to disrupt and confuse their enemies.',\n\t\t\tarchetype:'spellcaster',\n            layers: {\n                female: [\n                    { part: 'Trim 1', x: 3, y: -95, def: 0xFFFFFF },\n                    { part: 'Accessory 2', x: 51, y: -96, def: 0xFFFFFF },\n                    { part: 'Skin', x: 25, y: -17, def: 0xFFFFFF },\n                    { part: 'Lip', x: 72, y: -63, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 58, y: -40, def: 0xFFFFFF },\n                    { part: 'Hair 1', x: 3, y: -7, def: 0xFFFFFF },\n                    { part: 'Accessory 1', x: 16, y: 0, def: 0xFFFFFF },\n                    { part: 'Hair 2', x: 15, y: -10, def: 0xFFFFFF },\n                    { part: 'Eye', x: 60, y: -41, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Clothes 1', x: 12, y: -72, def: 0xFFFFFF },\n                    { part: 'Trim 2', x: 49, y: -114, def: 0xFFFFFF },\n                    { part: 'Clothes 2', x: 14, y: -79, def: 0xFFFFFF },\n                    { part: 'Trim 1', x: 41, y: -83, def: 0xFFFFFF },\n                    { part: 'Skin', x: 18, y: -11, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 34, y: -38, def: 0xFFFFFF },\n                    { part: 'Hair 1', x: 1, y: -1, def: 0xFFFFFF },\n                    { part: 'Hair 2', x: 0, y: -15, def: 0xFFFFFF },\n                    { part: 'Eye', x: 37, y: -37, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'knight',\n            name: 'Knight',\n            description:'Wearing heavy armor and mounting powerful war horses, knights are masters of the battlefield.',\n\t\t\tarchetype:'fighter',\n            layers: {\n                female: [\n                    { part: 'Clothes 1', x: 0, y: -47, def: 0xFFFFFF },\n                    { part: 'Trim', x: 0, y: -94, def: 0xFFFFFF },\n                    { part: 'Clothes 2', x: 19, y: -2, def: 0xFFFFFF },\n                    { part: 'Skin', x: 22, y: -4, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 24, y: -27, def: 0xFFFFFF },\n                    { part: 'Lip', x: 31, y: -58, def: 0xFFFFFF },\n                    { part: 'Eye', x: 26, y: -26, def: 0xFFFFFF },\n                    { part: 'Hair', x: 11, y: 0, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Clothes', x: 0, y: -42, def: 0xFFFFFF },\n                    { part: 'Accessory', x: 104, y: -20, def: 0xFFFFFF },\n                    { part: 'Trim', x: 79, y: -51, def: 0xFFFFFF },\n                    { part: 'Skin', x: 44, y: -17, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 48, y: -35, def: 0xFFFFFF },\n                    { part: 'Eye', x: 53, y: -35, def: 0xFFFFFF },\n                    { part: 'Hair', x: 21, y: -1, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'mercenary',\n            name: 'Mercenary',\n            description:'A melee weapons and armor specialist, the mercenaries focuses only on combat skills and techniques.',\n\t\t\tarchetype:'fighter',\n            layers: {\n                female: [\n                    { part: 'Clothes 1', x: 0, y: -88, def: 0xFFFFFF },\n                    { part: 'Clothes 2', x: 33, y: -74, def: 0xFFFFFF },\n                    { part: 'Skin', x: 25, y: -28, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 48, y: -45, def: 0xFFFFFF },\n                    { part: 'Eye', x: 56, y: -46, def: 0xFFFFFF },\n                    { part: 'Hair', x: 56, y: -38, def: 0xFFFFFF },\n                    { part: 'Lip', x: 60, y: -72, def: 0xFFFFFF },\n                    { part: 'Trim', x: -1, y: -56, def: 0xFFFFFF },\n                    { part: 'Accessory', x: 0, y: -2, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Clothes 1', x: 0, y: -94, def: 0xFFFFFF },\n                    { part: 'Clothes 2', x: 24, y: -66, def: 0xFFFFFF },\n                    { part: 'Skin', x: 21, y: -4, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 44, y: -39, def: 0xFFFFFF },\n                    { part: 'Eye', x: 47, y: -38, def: 0xFFFFFF },\n                    { part: 'Hair', x: 38, y: -33, def: 0xFFFFFF },\n                    { part: 'Tattoo', x: 41, y: -20, def: 0xFFFFFF },\n                    { part: 'Trim', x: 0, y: -88, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'monk',\n            name: 'Monk',\n            description:'Monks refuse to use any equipment whatsoever and rely solely on their fists, feet and technique to survive.',\n\t\t\tarchetype:'fighter',\n            layers: {\n                female: [\n                    { part: 'Clothes', x: 33, y: -97, def: 0xFFFFFF },\n                    { part: 'Accessory 1', x: 50, y: -74, def: 0xFFFFFF },\n                    { part: 'Accessory 2', x: 49, y: -82, def: 0xFFFFFF },\n                    { part: 'Skin', x: 43, y: -3, def: 0xFFFFFF },\n                    { part: 'Lip', x: 90, y: -60, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 73, y: -31, def: 0xFFFFFF },\n                    { part: 'Eye', x: 78, y: -32, def: 0xFFFFFF },\n                    { part: 'Hair', x: 0, y: -1, def: 0xFFFFFF },\n                    { part: 'Tattoo', x: 88, y: -8, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Clothes 1', x: 0, y: -102, def: 0xFFFFFF },\n                    { part: 'Clothes 2', x: 88, y: -107, def: 0xFFFFFF },\n                    { part: 'Accessory 1', x: 5, y: -78, def: 0xFFFFFF },\n                    { part: 'Accessory 2', x: 73, y: -107, def: 0xFFFFFF },\n                    { part: 'Skin', x: 15, y: -20, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 18, y: -59, def: 0xFFFFFF },\n                    { part: 'Eye', x: 19, y: -60, def: 0xFFFFFF },\n                    { part: 'Hair', x: 15, y: 0, def: 0xFFFFFF },\n                    { part: 'Tattoo', x: 24, y: -33, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'musketeer',\n            name: 'Musketeer',\n            description:'Musketeers are versatile fighters that rely mostly on their agility and wits to assure their survival.',\n\t\t\tarchetype:'rogue',\n            layers: {\n                female: [\n                    { part: 'Skin', x: 33, y: -33, def: 0xFFFFFF },\n                    { part: 'Lip', x: 62, y: -76, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 50, y: -46, def: 0xFFFFFF },\n                    { part: 'Eye', x: 54, y: -47, def: 0xFFFFFF },\n                    { part: 'Hair', x: 0, y: -29, def: 0xFFFFFF },\n                    { part: 'Accessory 1', x: 0, y: 0, def: 0xFFFFFF },\n                    { part: 'Accessory 2', x: 84, y: 0, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 0, y: -83, def: 0xFFFFFF },\n                    { part: 'Trim', x: 61, y: -102, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Skin', x: 36, y: -41, def: 0xFFFFFF },\n                    { part: 'Hair', x: 15, y: -43, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 37, y: -48, def: 0xFFFFFF },\n                    { part: 'Eye', x: 42, y: -46, def: 0xFFFFFF },\n                    { part: 'Accessory 3', x: 81, y: -57, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 21, y: -85, def: 0xFFFFFF },\n                    { part: 'Trim', x: 55, y: -91, def: 0xFFFFFF },\n                    { part: 'Accessory 1', x: 0, y: 0, def: 0xFFFFFF },\n                    { part: 'Accessory 2', x: 57, y: 0, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'ninja',\n            name: 'Ninja',\n            description:'Paragon of stealth, Ninjas strike with deadly efficiency at the heart of their enemies.',\n\t\t\tarchetype:'rogue',\n            layers: {\n                female: [\n                    { part: 'Skin', x: 46, y: -58, def: 0xFFFFFF },\n                    { part: 'Hair', x: 2, y: -19, def: 0xFFFFFF },\n                    { part: 'Eye', x: 50, y: -60, def: 0xFFFFFF },\n                    { part: 'Accessory 1', x: 48, y: -71, def: 0xFFFFFF },\n                    { part: 'Accessory 3', x: 43, y: 0, def: 0xFFFFFF },\n                    { part: 'Accessory 2', x: 40, y: -21, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 38, y: -83, def: 0xFFFFFF },\n                    { part: 'Accessory 4', x: 52, y: -49, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Skin', x: 32, y: -61, def: 0xFFFFFF },\n                    { part: 'Hair', x: 12, y: 0, def: 0xFFFFFF },\n                    { part: 'Eye', x: 48, y: -68, def: 0xFFFFFF },\n                    { part: 'Accessory 1', x: 32, y: -82, def: 0xFFFFFF },\n                    { part: 'Accessory 2', x: 20, y: -44, def: 0xFFFFFF },\n                    { part: 'Accessory 3', x: 38, y: 0, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 0, y: -51, def: 0xFFFFFF },\n                    { part: 'Accessory 4', x: 49, y: -60, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'paladin',\n            name: 'Paladin',\n            description:'Paladins are the leaders of armies and use their formidable mystical skills to manage troops and crush the enemy.',\n\t\t\tarchetype:'fighter',\n            layers: {\n                female: [\n                    { part: 'Skin', x: 26, y: -8, def: 0xFFFFFF },\n                    { part: 'Hair', x: 14, y: 0, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 52, y: -37, def: 0xFFFFFF },\n                    { part: 'Lip', x: 69, y: -66, def: 0xFFFFFF },\n                    { part: 'Eye', x: 60, y: -37, def: 0xFFFFFF },\n                    { part: 'Clothes 1', x: 10, y: -59, def: 0xFFFFFF },\n                    { part: 'Clothes 2', x: 46, y: -87, def: 0xFFFFFF },\n                    { part: 'Trim', x: 0, y: -43, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Skin', x: 23, y: -12, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 34, y: -45, def: 0xFFFFFF },\n                    { part: 'Eye', x: 36, y: -45, def: 0xFFFFFF },\n                    { part: 'Hair', x: 27, y: 0, def: 0xFFFFFF },\n                    { part: 'Clothes 1', x: 0, y: -75, def: 0xFFFFFF },\n                    { part: 'Trim 1', x: 1, y: -57, def: 0xFFFFFF },\n                    { part: 'Clothes 2', x: 36, y: -81, def: 0xFFFFFF },\n                    { part: 'Trim 2', x: 19, y: -105, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'singingaxe',\n            name: 'Singing Axe',\n            description:'Carrying only axes, they long for bloodbaths and vow their existence to making it happen.',\n\t\t\tarchetype:'rogue',\n            layers: {\n                female: [\n                    { part: 'Skin', x: 28, y: -42, def: 0xFFFFFF },\n                    { part: 'Mouth', x: 58, y: -86, def: 0xFFFFFF },\n                    { part: 'Lip', x: 55, y: -85, def: 0xFFFFFF },\n                    { part: 'Eye', x: 43, y: -59, def: 0xFFFFFF },\n                    { part: 'Accessory 1', x: 30, y: 0, def: 0xFFFFFF },\n                    { part: 'Accessory 2', x: 0, y: -25, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Skin', x: 22, y: -33, def: 0xFFFFFF },\n                    { part: 'Mouth', x: 52, y: -74, def: 0xFFFFFF },\n                    { part: 'Eye', x: 41, y: -45, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 12, y: -88, def: 0xFFFFFF },\n                    { part: 'Accessory 1', x: 0, y: -1, def: 0xFFFFFF },\n                    { part: 'Accessory 2', x: 4, y: -22, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'sorcerer',\n            name: 'Sorcerer',\n            description:'Sorcerers use magic to impart curses to their enemies or boost their comrades.',\n\t\t\tarchetype:'spellcaster',\n            layers: {\n                female: [\n                    { part: 'Accessory', x: 0, y: -1, def: 0xFFFFFF },\n                    { part: 'Skin', x: 37, y: -50, def: 0xFFFFFF },\n                    { part: 'Lip', x: 55, y: -80, def: 0xFFFFFF },\n                    { part: 'Eye', x: 43, y: -55, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 17, y: -23, def: 0xFFFFFF },\n                    { part: 'Trim 1', x: 16, y: -28, def: 0xFFFFFF },\n                    { part: 'Trim 2', x: 59, y: -30, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Accessory', x: 0, y: 0, def: 0xFFFFFF },\n                    { part: 'Skin', x: 37, y: -50, def: 0xFFFFFF },\n                    { part: 'Eye', x: 45, y: -56, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 0, y: -17, def: 0xFFFFFF },\n                    { part: 'Trim 1', x: 3, y: -27, def: 0xFFFFFF },\n                    { part: 'Trim 2', x: 45, y: -34, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'thief',\n            name: 'Thief',\n            description:'Thieves live in the shadow and thus have learned to strike from it, delivering devastating blows to unsuspecting targets.',\n\t\t\tarchetype:'rogue',\n            layers: {\n                female: [\n                    { part: 'Skin', x: 13, y: -15, def: 0xFFFFFF },\n                    { part: 'Hair', x: 8, y: -1, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 6, y: -87, def: 0xFFFFFF },\n                    { part: 'Accessory', x: 15, y: -75, def: 0xFFFFFF },\n                    { part: 'Trim', x: 52, y: -100, def: 0xFFFFFF },\n                    { part: 'Lip', x: 46, y: -73, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 34, y: -44, def: 0xFFFFFF },\n                    { part: 'Eye', x: 35, y: -43, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Skin', x: 25, y: -27, def: 0xFFFFFF },\n                    { part: 'Hair', x: 20, y: -2, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 13, y: -79, def: 0xFFFFFF },\n                    { part: 'Trim', x: 29, y: -92, def: 0xFFFFFF },\n                    { part: 'Accessory', x: 29, y: -71, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 41, y: -59, def: 0xFFFFFF },\n                    { part: 'Eye', x: 44, y: -61, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }\n                ]\n            }\n        },\n        {id: 'warwizard',\n            name: 'War Wizard',\n            description:'Wizards of War are masters of the battlefield, they can both cast offensive spells and defensive spells.',\n\t\t\tarchetype:'spellcaster',\n            layers: {\n                female: [\n                    { part: 'Clothes 1', x: 2, y: -78, def: 0xFFFFFF },\n                    { part: 'Skin', x: 6, y: -6, def: 0xFFFFFF },\n                    { part: 'Lip', x: 58, y: -65, def: 0xFFFFFF },\n                    { part: 'Hair', x: 0, y: -1, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 43, y: -37, def: 0xFFFFFF },\n                    { part: 'Eye', x: 48, y: -37, def: 0xFFFFFF },\n                    { part: 'Clothes 2', x: 79, y: -114, def: 0xFFFFFF },\n                    { part: 'Trim', x: 7, y: -76, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF },\n                    { part: 'Accessory', x: -15, y: 4, def: 0xFFFFFF }\n                ],\n                male: [\n                    { part: 'Eye', x: 2, y: -3, def: 0xFFFFFF },\n                    { part: 'Clothes', x: 2, y: -73, def: 0xFFFFFF },\n                    { part: 'Trim', x: 3, y: -3, def: 0xFFFFFF },\n                    { part: 'Skin', x: 3, y: -3, def: 0xFFFFFF },\n                    { part: 'Hair', x: 28, y: -38, def: 0xFFFFFF },\n                    { part: 'Eyewhite', x: 34, y: -38, def: 0xFFFFFF },\n                    { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF },\n                    { part: 'Accessory', x: -27, y: 1, def: 0xFFFFFF }\n                ]\n            }\n        },\n    ]\n}\n"
+  - name: Init
+    code: |-
+      ct.game = {
+          ui: {},
+          logs: [],
+          logElements: []
+      }
+
+      console.log('Game Initialized')
   - name: Functions
     code: >-
       ct.game.newGame = function(){
-          ct.rooms.switch('charEdit')
-          setTimeout(()=>{
-              ct.room.editChar({
-                  name:'Bob McAwesome',
-                  char:'barbarian',
-                  gender:'male',
-                  stats:{
-                      available:600,
-                      level(stat){
-                          switch(true){
-                              case stat <= 3:
-                              return Math.floor(stat/1+1)
-                              case stat <= 10:
-                              return Math.floor(stat/2+2.5)
-                              case stat <= 16:
-                              return Math.floor(stat/3+4)
-                              case stat <= 20:
-                              return Math.floor(stat/5+6)
-                          }
-                      },
-                      str:0,
-                      agi:0,
-                      res:0,
-                      int:0,
-                      wis:0,
-                      cha:0,
-                  },
-                  colors:{
-                      skin:0xc58c85
-                  }
-              })
-          },10000)
+          ct.game.goToRoom('charEdit')
       }
 
 
@@ -11409,6 +11560,9 @@ scripts:
                   element.hitbox.height = Math.max(options.height || 0, (options.style.fontSize + (options.border.width * 2)))
                   element.hitbox.width = options.width || 0
               break
+              case 'portrait':
+                  element.portrait = ct.types.copy('Portrait', optoins.x, options.y)
+              break
           }
           element.onStep = new Function(`
               ${type != 'img' ? `
@@ -11428,37 +11582,65 @@ scripts:
       }
 
 
-      ct.game.addUIElement = function(element, options){
-          ct.game.ui.overlay.push({element: element, options: options})
-          var unitSize = (ct.height/ct.room.height)
-          element.attr('style', `
-              background-color: rgba(0,0,0,0)
-              height: ${options.height*unitSize}px !important
-              width: ${options.width*unitSize}px !important
-              top: ${options.y*unitSize}px
-              left: ${options.x*unitSize}px
-              ${options.font ? `
-              font: ${options.font.fontWeight} ${options.font.fontSize*unitSize}px/${options.font.lineHeight*unitSize}px ${options.font.fontFamily}
-              color: ${options.font.fill}
-              text-shadow: ${Math.round(options.font.dropShadowDistance*Math.cos(options.font.dropShadowAngle*(180/Math.PI)))}px ${Math.round(options.font.dropShadowDistance*Math.sin(options.font.dropShadowAngle*(180/Math.PI)))}px ${options.font.dropShadowDistance}px ${options.font.dropShadowColor}
-              ` : ''}
-          `)
-          if(options.events){
-              for(var event of options.events){
-                  element.on(event.event, (e)=>{
-                      e.stopPropagation()
-                      event.callback(e)
-                  })
+      ct.game.goToRoom = (room, callback)=>{
+          if(ct.game.ui.bottom){
+              ct.game.ui.bottom.kill = true
+              ct.game.ui.bottom = false
+          }
+          function loadRoomsList(){
+              console.log('Waiting')
+              if(Object.keys(ct.rooms.list).length){
+                  console.log('switching to:', room, 'Actually:', Object.keys(ct.rooms.list).includes(room) ? room : 'Game')
+                  var newRoom = Object.keys(ct.rooms.list).includes(room) ? room : 'Game'
+                  ct.rooms.switch(newRoom)
+                  function loadRoom(){
+                      if(!ct.rooms.switching){
+                          console.log('drawing UI', ct.room)
+                          ct.game.ui.bottom = ct.types.copy('UI-Bottom', 0, 461)
+                          if(ct.room.name == 'Game'){
+                              ct.game.ui.background = ct.types.copy('Hitbox', 0, 0)
+                              ct.game.ui.background.tex = room
+                              ct.game.ui.background.depth = -5
+                          }
+                          if(callback){
+                              callback()
+                          }
+                      }else{
+                          setTimeout(loadRoom)
+                      }
+                  }
+                  loadRoom()
+              }else{
+                  setTimeout(loadRoomsList, 10)
               }
           }
-          element.on('mousedown', (e)=>{
-              e.stopPropagation()
-          })
-          element.on('keydown', (e)=>{
-              e.stopPropagation()
-          })
-          $('#UI-Overlay').append(element)
-          return ct.game.ui.overlay[ct.game.ui.overlay.length-1]
+          loadRoomsList()
+      }
+
+
+      ct.game.save = ()=>{
+          localStorage.data = JSON.stringify(ct.game.data)
+      }
+
+
+      ct.game.load = ()=>{
+          ct.game.data = JSON.parse(localStorage.data)
+      }
+
+
+      ct.game.log = (...text)=>{
+          ct.game.logs.push(text.join())
+          ct.game.drawLogs()
+      }
+
+
+      ct.game.match = (str, pattern)=>{
+          var matches = []
+          while(matches[matches.length-1] !== null){
+              matches.push(pattern.exec(str))
+          }
+          matches.pop()
+          return matches
       }
 
 
@@ -11482,6 +11664,665 @@ scripts:
           }
           return slice
       }
+
+
+      console.log('Functions Loaded')
+  - name: GameData
+    code: |-
+      console.log('Loading game data:')
+      if(localStorage.data){
+          console.log('Save data found.')
+          ct.game.load()
+          console.log(ct.game.data.party)
+          setTimeout(()=>{
+              ct.game.goToRoom('guildhall')
+          })
+      }else{
+          console.log('No data found. Starting a new game.')
+          ct.game.data = {
+              party:{
+                  name:'',
+                  leader:'',
+                  frontRow:[],
+                  backRow:[],
+                  members:[],
+                  maxSize(){
+                      return this.leader ? this.members.reduce((a)=>a.name==this.leader).stats.cha : 3
+                  }
+              }
+          }
+          setTimeout(()=>{
+              ct.game.newGame()
+          })
+      }
+      ct.game.attributes = {
+          level(stat){
+              switch(true){
+                  case stat <= 3:
+                  return Math.floor(stat/1+1)
+                  case stat <= 10:
+                  return Math.floor(stat/2+2.5)
+                  case stat <= 16:
+                  return Math.floor(stat/3+4)
+                  case stat <= 20:
+                  return Math.floor(stat/5+6)
+              }
+          },
+          maxHP(char){},
+          armor(char){},
+          resist(char, tpye){},
+          inflict(char){},
+          hpRegen(char){},
+          mpRegen(char){},
+          maxMP(char){},
+          damage(char, type){},
+          criticalChance(char){},
+          criticalDamage(char){},
+          carry(char){},
+          avoid(char, type){},
+          counter(char, type){},
+          dispell(char){},
+          goldBoost(char){},
+          expBoost(char){},
+          initiative(char){},
+          rest(char){},
+          duration(char){},
+          penetrate(char){},
+          accuracy(char){},
+          authority(char){},
+          haggle(char){},
+      }
+      ct.game.classes = [
+          {id: 'archer',
+              name: 'Archer',
+              description:'Archers use their bows to cripple targets from afar and are the bane of any spellcaster.',
+              archetype:'rogue',
+              layers: {
+                  female: [
+                      { part: 'Skin', x: 24, y: -36, def: 0xFF000000 },
+                      { part: 'Eyewhite', x: 33, y: -46, def: 0xFFFFFF },
+                      { part: 'Eye', x: 31, y: -46, def: 0xFFFFFF },
+                      { part: 'Lip', x: 33, y: -75, def: 0xFFFFFF },
+                      { part: 'Accessory', x: 10, y: -4, def: 0xFFFFFF },
+                      { part: 'Trim 1', x: 1, y: 0, def: 0xFFFFFF },
+                      { part: 'Trim 2', x: 3, y: 0, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 39, y: -88, def: 0x000FFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Skin', x: 47, y: -40, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 56, y: -53, def: 0xFFFFFF },
+                      { part: 'Eye', x: 61, y: -53, def: 0xFFFFFF },
+                      { part: 'Hair', x: 48, y: -42, def: 0x0000FF },
+                      { part: 'Accessory', x: 14, y: 1, def: 0xFF00FF },
+                      { part: 'Trim 1', x: 0, y: -17, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 22, y: -114, def: 0xFFFFFF },
+                      { part: 'Trim 2', x: 35, y: -101, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'barbarian',
+              name: 'Barbarian',
+              description:'Forsaking martial techniques, barbarians prefer relying on their own brute strength and resilience to vanquish their foes.',
+              archetype:'fighter',
+              layers: {
+                  female: [
+                      { part: 'Skin', x: 0, y: -8, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 57, y: -50, def: 0xFFFFFF },
+                      { part: 'Eye', x: 62, y: -50, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 15, y: -8, def: 0xFFFFFF },
+                      { part: 'Accessory', x: 23, y: -78, def: 0xFFFFFF },
+                      { part: 'Lip', x: 65, y: -77, def: 0xFFFFFF },
+                      { part: 'Hair', x: 0, y: 0, def: 0xFFFFFF },
+                      { part: 'Tattoo', x: 0, y: -28, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Skin', x: 2, y: -9, def: 0xFFFFFF },
+                      { part: 'Hair', x: 1, y: -1, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 78, y: -32, def: 0xFFFFFF },
+                      { part: 'Accessory', x: 1, y: -78, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 12, y: -41, def: 0xFFFFFF },
+                      { part: 'Eye', x: 11, y: -42, def: 0xFFFFFF },
+                      { part: 'Tattoo', x: 10, y: -17, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'bard',
+              name: 'Bard',
+              description:'Using their music, bards boost the abilities of the party or hinder the enemy. They use minimalistic armor so they can freely play their instrument.',
+              archetype:'spellcaster',
+              layers: {
+                  female: [
+                      { part: 'Skin', x: 7, y: -29, def: 0xFFFFFF },
+                      { part: 'Accessory 1', x: 30, y: -16, def: 0xFFFFFF },
+                      { part: 'Accessory 3', x: 69, y: 0, def: 0xFFFFFF },
+                      { part: 'Accessory 2', x: 68, y: -22, def: 0xFFFFFF },
+                      { part: 'Hair 1', x: 2, y: -7, def: 0xFFFFFF },
+                      { part: 'Hair 2', x: 12, y: -7, def: 0xFFFFFF },
+                      { part: 'Lip', x: 48, y: -72, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 36, y: -46, def: 0xFFFFFF },
+                      { part: 'Eye', x: 39, y: -46, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 27, y: -87, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Skin', x: 29, y: -23, def: 0xFFFFFF },
+                      { part: 'Accessory 1', x: 39, y: -13, def: 0xFFFFFF },
+                      { part: 'Accessory 2', x: 42, y: -16, def: 0xFFFFFF },
+                      { part: 'Hair 1', x: 13, y: 0, def: 0xFFFFFF },
+                      { part: 'Hair 2', x: 14, y: -6, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 43, y: -35, def: 0xFFFFFF },
+                      { part: 'Eye', x: 46, y: -35, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 4, y: -61, def: 0xFFFFFF },
+                      { part: 'Accessory 3', x: 24, y: -66, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'berserker',
+              name: 'Berserker',
+              description:'A berserker\'s rage is so great that they can rip apart a massive army single-handledly.',
+              archetype:'fighter',
+              layers: {
+                  female: [
+                      { part: 'Skin', x: 22, y: -17, def: 0xFFFFFF },
+                      { part: 'Mouth', x: 63, y: -61, def: 0xFFFFFF },
+                      { part: 'Lip', x: 63, y: -54, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 58, y: -36, def: 0xFFFFFF },
+                      { part: 'Eye', x: 62, y: -35, def: 0xFFFFFF },
+                      { part: 'Hair', x: 0, y: -1, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 0, y: -74, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 0, y: -58, def: 0xFFFFFF },
+                      { part: 'Tattoo', x: 53, y: -21, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Clothes', x: 27, y: -90, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 0, y: -42, def: 0xFFFFFF },
+                      { part: 'Trim 1', x: 6, y: -52, def: 0xFFFFFF },
+                      { part: 'Trim 2', x: 0, y: -35, def: 0xFFFFFF },
+                      { part: 'Skin', x: 37, y: -15, def: 0xFFFFFF },
+                      { part: 'Mouth', x: 47, y: -49, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 44, y: -30, def: 0xFFFFFF },
+                      { part: 'Eye', x: 46, y: -32, def: 0xFFFFFF },
+                      { part: 'Tattoo', x: 41, y: -41, def: 0xFFFFFF },
+                      { part: 'Hair', x: 24, y: -2, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'channeler',
+              name: 'Channeler',
+              description:'',
+              archetype:'spellcaster',
+              layers: {
+                  female: [
+                      { part: 'Skin', x: 19, y: -29, def: 0xFFFFFF },
+                      { part: 'Hair', x: 11, y: 0, def: 0xFFFFFF },
+                      { part: 'Tattoo', x: 43, y: -23, def: 0xFFFFFF },
+                      { part: 'Mouth', x: 75, y: -67, def: 0xFFFFFF },
+                      { part: 'Lip', x: 73, y: -64, def: 0xFFFFFF },
+                      { part: 'Trim', x: 0, y: -34, def: 0xFFFFFF },
+                      { part: 'Accessory', x: 37, y: -12, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 44, y: -42, def: 0xFFFFFF },
+                      { part: 'Eye', x: 56, y: -37, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Skin', x: 0, y: -55, def: 0xFFFFFF },
+                      { part: 'Hair', x: 14, y: 0, def: 0xFFFFFF },
+                      { part: 'Mouth', x: 60, y: -93, def: 0xFFFFFF },
+                      { part: 'Tattoo', x: 38, y: -58, def: 0xFFFFFF },
+                      { part: 'Trim', x: 0, y: -32, def: 0xFFFFFF },
+                      { part: 'Accessory', x: 32, y: -37, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 16, y: -55, def: 0xFFFFFF },
+                      { part: 'Eye', x: 48, y: -65, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'engineer',
+              name: 'Engineer',
+              description:'Engineers work efficiently and prefer to fight using tools or their constructed machinery.',
+              archetype:'rogue',
+              layers: {
+                  female: [
+                      { part: 'Skin', x: 21, y: -23, def: 0xFFFFFF },
+                      { part: 'Lip', x: 44, y: -68, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 36, y: -39, def: 0xFFFFFF },
+                      { part: 'Eye', x: 39, y: -40, def: 0xFFFFFF },
+                      { part: 'Clothes 2', x: 62, y: -34, def: 0xFFFFFF },
+                      { part: 'Trim 1', x: 46, y: -35, def: 0xFFFFFF },
+                      { part: 'Accessory', x: 1, y: -1, def: 0xFFFFFF },
+                      { part: 'Trim 2', x: 58, y: -1, def: 0xFFFFFF },
+                      { part: 'Hair', x: 12, y: -24, def: 0xFFFFFF },
+                      { part: 'Clothes 1', x: 45, y: -53, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Skin', x: 3, y: -22, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 64, y: -31, def: 0xFFFFFF },
+                      { part: 'Eye', x: 70, y: -31, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 4, y: -82, def: 0xFFFFFF },
+                      { part: 'Trim', x: 46, y: -17, def: 0xFFFFFF },
+                      { part: 'Accessory 2', x: 49, y: 9, def: 0xFFFFFF },
+                      { part: 'Hair', x: 44, y: -26, def: 0xFFFFFF },
+                      { part: 'Accessory 1', x: 0, y: -1, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'evoker',
+              name: 'Evoker',
+              description:'Evokers are powerful spellcasters, masters of the elements. Manipulating elements, evokers can deal great amount of damage to their enemies.',
+              archetype:'spellcaster',
+              layers: {
+                  female: [
+                      { part: 'Skin', x: 0, y: -32, def: 0xFFFFFF },
+                      { part: 'Lip', x: 45, y: -65, def: 0xFFFFFF },
+                      { part: 'Eye', x: 41, y: -40, def: 0xFFFFFF },
+                      { part: 'Tattoo', x: 37, y: -45, def: 0xFFFFFF },
+                      { part: 'Mouth', x: 47, y: -69, def: 0xFFFFFF },
+                      { part: 'Accessory', x: 11, y: 0, def: 0xFFFFFF },
+                      { part: 'Trim 1', x: 36, y: 0, def: 0xFFFFFF },
+                      { part: 'Trim 2', x: 49, y: -15, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Skin', x: 4, y: -45, def: 0xFFFFFF },
+                      { part: 'Tattoo', x: 47, y: -46, def: 0xFFFFFF },
+                      { part: 'Mouth', x: 63, y: -78, def: 0xFFFFFF },
+                      { part: 'Eye', x: 52, y: -52, def: 0xFFFFFF },
+                      { part: 'Accessory', x: 1, y: -13, def: 0xFFFFFF },
+                      { part: 'Trim 2', x: 10, y: -49, def: 0xFFFFFF },
+                      { part: 'Trim 1', x: 18, y: 0, def: 0xFFFFFF },
+                      { part: 'Trim 3', x: 60, y: -26, def: 0xFFFFFF },
+                      { part: 'Trim 4', x: 63, y: -122, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'guard',
+              name: 'Guard',
+              description:'Guards have powerful defensive skills, they are trained to protect others even if it means putting their own lives in harm\'s way.',
+              archetype:'fighter',
+              layers: {
+                  female: [
+                      { part: 'Clothes 1', x: 0, y: -7, def: 0xFFFFFF },
+                      { part: 'Trim 1', x: 24, y: -26, def: 0xFFFFFF },
+                      { part: 'Clothes 3', x: 43, y: -107, def: 0xFFFFFF },
+                      { part: 'Clothes 2', x: 24, y: -63, def: 0xFFFFFF },
+                      { part: 'Trim 2', x: 50, y: 0, def: 0xFFFFFF },
+                      { part: 'Skin', x: 36, y: -51, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 38, y: -59, def: 0xFFFFFF },
+                      { part: 'Eye', x: 41, y: -61, def: 0xFFFFFF },
+                      { part: 'Lip', x: 46, y: -88, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Clothes 1', x: 0, y: -29, def: 0xFFFFFF },
+                      { part: 'Trim 1', x: 0, y: -45, def: 0xFFFFFF },
+                      { part: 'Trim 3', x: 53, y: -130, def: 0xFFFFFF },
+                      { part: 'Trim 2', x: 24, y: -1, def: 0xFFFFFF },
+                      { part: 'Skin', x: 73, y: -75, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 78, y: -80, def: 0xFFFFFF },
+                      { part: 'Eye', x: 83, y: -80, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'healer',
+              name: 'Healer',
+              description:'Healers have dedicated their lives to helping others. They can heal all kind of body ailments.',
+              archetype:'spellcaster',
+              layers: {
+                  female: [
+                      { part: 'Skin', x: 26, y: -6, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 47, y: -29, def: 0xFFFFFF },
+                      { part: 'Eye', x: 52, y: -29, def: 0xFFFFFF },
+                      { part: 'Lip', x: 57, y: -55, def: 0xFFFFFF },
+                      { part: 'Hair', x: 9, y: -1, def: 0xFFFFFF },
+                      { part: 'Accessory', x: 30, y: -60, def: 0xFFFFFF },
+                      { part: 'Clothes 1', x: 1, y: -68, def: 0xFFFFFF },
+                      { part: 'Clothes 2', x: 10, y: -11, def: 0xFFFFFF },
+                      { part: 'Trim', x: 39, y: -66, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Skin', x: 28, y: -6, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 57, y: -24, def: 0xFFFFFF },
+                      { part: 'Eye', x: 63, y: -24, def: 0xFFFFFF },
+                      { part: 'Hair', x: 1, y: 0, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 14, y: -66, def: 0xFFFFFF },
+                      { part: 'Trim', x: 19, y: -16, def: 0xFFFFFF },
+                      { part: 'Accessory', x: 36, y: -56, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'illusionist',
+              name: 'Illusionist',
+              description:'Illusionists are spellcasters that specialize in mental exercise and spectacular displays, meant to disrupt and confuse their enemies.',
+              archetype:'spellcaster',
+              layers: {
+                  female: [
+                      { part: 'Trim 1', x: 3, y: -95, def: 0xFFFFFF },
+                      { part: 'Accessory 2', x: 51, y: -96, def: 0xFFFFFF },
+                      { part: 'Skin', x: 25, y: -17, def: 0xFFFFFF },
+                      { part: 'Lip', x: 72, y: -63, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 58, y: -40, def: 0xFFFFFF },
+                      { part: 'Hair 1', x: 3, y: -7, def: 0xFFFFFF },
+                      { part: 'Accessory 1', x: 16, y: 0, def: 0xFFFFFF },
+                      { part: 'Hair 2', x: 15, y: -10, def: 0xFFFFFF },
+                      { part: 'Eye', x: 60, y: -41, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Clothes 1', x: 12, y: -72, def: 0xFFFFFF },
+                      { part: 'Trim 2', x: 49, y: -114, def: 0xFFFFFF },
+                      { part: 'Clothes 2', x: 14, y: -79, def: 0xFFFFFF },
+                      { part: 'Trim 1', x: 41, y: -83, def: 0xFFFFFF },
+                      { part: 'Skin', x: 18, y: -11, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 34, y: -38, def: 0xFFFFFF },
+                      { part: 'Hair 1', x: 1, y: -1, def: 0xFFFFFF },
+                      { part: 'Hair 2', x: 0, y: -15, def: 0xFFFFFF },
+                      { part: 'Eye', x: 37, y: -37, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'knight',
+              name: 'Knight',
+              description:'Wearing heavy armor and mounting powerful war horses, knights are masters of the battlefield.',
+              archetype:'fighter',
+              layers: {
+                  female: [
+                      { part: 'Clothes 1', x: 0, y: -47, def: 0xFFFFFF },
+                      { part: 'Trim', x: 0, y: -94, def: 0xFFFFFF },
+                      { part: 'Clothes 2', x: 19, y: -2, def: 0xFFFFFF },
+                      { part: 'Skin', x: 22, y: -4, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 24, y: -27, def: 0xFFFFFF },
+                      { part: 'Lip', x: 31, y: -58, def: 0xFFFFFF },
+                      { part: 'Eye', x: 26, y: -26, def: 0xFFFFFF },
+                      { part: 'Hair', x: 11, y: 0, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Clothes', x: 0, y: -42, def: 0xFFFFFF },
+                      { part: 'Accessory', x: 104, y: -20, def: 0xFFFFFF },
+                      { part: 'Trim', x: 79, y: -51, def: 0xFFFFFF },
+                      { part: 'Skin', x: 44, y: -17, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 48, y: -35, def: 0xFFFFFF },
+                      { part: 'Eye', x: 53, y: -35, def: 0xFFFFFF },
+                      { part: 'Hair', x: 21, y: -1, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'mercenary',
+              name: 'Mercenary',
+              description:'A melee weapons and armor specialist, the mercenaries focuses only on combat skills and techniques.',
+              archetype:'fighter',
+              layers: {
+                  female: [
+                      { part: 'Clothes 1', x: 0, y: -88, def: 0xFFFFFF },
+                      { part: 'Clothes 2', x: 33, y: -74, def: 0xFFFFFF },
+                      { part: 'Skin', x: 25, y: -28, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 48, y: -45, def: 0xFFFFFF },
+                      { part: 'Eye', x: 56, y: -46, def: 0xFFFFFF },
+                      { part: 'Hair', x: 56, y: -38, def: 0xFFFFFF },
+                      { part: 'Lip', x: 60, y: -72, def: 0xFFFFFF },
+                      { part: 'Trim', x: -1, y: -56, def: 0xFFFFFF },
+                      { part: 'Accessory', x: 0, y: -2, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Clothes 1', x: 0, y: -94, def: 0xFFFFFF },
+                      { part: 'Clothes 2', x: 24, y: -66, def: 0xFFFFFF },
+                      { part: 'Skin', x: 21, y: -4, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 44, y: -39, def: 0xFFFFFF },
+                      { part: 'Eye', x: 47, y: -38, def: 0xFFFFFF },
+                      { part: 'Hair', x: 38, y: -33, def: 0xFFFFFF },
+                      { part: 'Tattoo', x: 41, y: -20, def: 0xFFFFFF },
+                      { part: 'Trim', x: 0, y: -88, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'monk',
+              name: 'Monk',
+              description:'Monks refuse to use any equipment whatsoever and rely solely on their fists, feet and technique to survive.',
+              archetype:'fighter',
+              layers: {
+                  female: [
+                      { part: 'Clothes', x: 33, y: -97, def: 0xFFFFFF },
+                      { part: 'Accessory 1', x: 50, y: -74, def: 0xFFFFFF },
+                      { part: 'Accessory 2', x: 49, y: -82, def: 0xFFFFFF },
+                      { part: 'Skin', x: 43, y: -3, def: 0xFFFFFF },
+                      { part: 'Lip', x: 90, y: -60, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 73, y: -31, def: 0xFFFFFF },
+                      { part: 'Eye', x: 78, y: -32, def: 0xFFFFFF },
+                      { part: 'Hair', x: 0, y: -1, def: 0xFFFFFF },
+                      { part: 'Tattoo', x: 88, y: -8, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Clothes 1', x: 0, y: -102, def: 0xFFFFFF },
+                      { part: 'Clothes 2', x: 88, y: -107, def: 0xFFFFFF },
+                      { part: 'Accessory 1', x: 5, y: -78, def: 0xFFFFFF },
+                      { part: 'Accessory 2', x: 73, y: -107, def: 0xFFFFFF },
+                      { part: 'Skin', x: 15, y: -20, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 18, y: -59, def: 0xFFFFFF },
+                      { part: 'Eye', x: 19, y: -60, def: 0xFFFFFF },
+                      { part: 'Hair', x: 15, y: 0, def: 0xFFFFFF },
+                      { part: 'Tattoo', x: 24, y: -33, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'musketeer',
+              name: 'Musketeer',
+              description:'Musketeers are versatile fighters that rely mostly on their agility and wits to assure their survival.',
+              archetype:'rogue',
+              layers: {
+                  female: [
+                      { part: 'Skin', x: 33, y: -33, def: 0xFFFFFF },
+                      { part: 'Lip', x: 62, y: -76, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 50, y: -46, def: 0xFFFFFF },
+                      { part: 'Eye', x: 54, y: -47, def: 0xFFFFFF },
+                      { part: 'Hair', x: 0, y: -29, def: 0xFFFFFF },
+                      { part: 'Accessory 1', x: 0, y: 0, def: 0xFFFFFF },
+                      { part: 'Accessory 2', x: 84, y: 0, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 0, y: -83, def: 0xFFFFFF },
+                      { part: 'Trim', x: 61, y: -102, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Skin', x: 36, y: -41, def: 0xFFFFFF },
+                      { part: 'Hair', x: 15, y: -43, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 37, y: -48, def: 0xFFFFFF },
+                      { part: 'Eye', x: 42, y: -46, def: 0xFFFFFF },
+                      { part: 'Accessory 3', x: 81, y: -57, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 21, y: -85, def: 0xFFFFFF },
+                      { part: 'Trim', x: 55, y: -91, def: 0xFFFFFF },
+                      { part: 'Accessory 1', x: 0, y: 0, def: 0xFFFFFF },
+                      { part: 'Accessory 2', x: 57, y: 0, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'ninja',
+              name: 'Ninja',
+              description:'Paragon of stealth, Ninjas strike with deadly efficiency at the heart of their enemies.',
+              archetype:'rogue',
+              layers: {
+                  female: [
+                      { part: 'Skin', x: 46, y: -58, def: 0xFFFFFF },
+                      { part: 'Hair', x: 2, y: -19, def: 0xFFFFFF },
+                      { part: 'Eye', x: 50, y: -60, def: 0xFFFFFF },
+                      { part: 'Accessory 1', x: 48, y: -71, def: 0xFFFFFF },
+                      { part: 'Accessory 3', x: 43, y: 0, def: 0xFFFFFF },
+                      { part: 'Accessory 2', x: 40, y: -21, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 38, y: -83, def: 0xFFFFFF },
+                      { part: 'Accessory 4', x: 52, y: -49, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Skin', x: 32, y: -61, def: 0xFFFFFF },
+                      { part: 'Hair', x: 12, y: 0, def: 0xFFFFFF },
+                      { part: 'Eye', x: 48, y: -68, def: 0xFFFFFF },
+                      { part: 'Accessory 1', x: 32, y: -82, def: 0xFFFFFF },
+                      { part: 'Accessory 2', x: 20, y: -44, def: 0xFFFFFF },
+                      { part: 'Accessory 3', x: 38, y: 0, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 0, y: -51, def: 0xFFFFFF },
+                      { part: 'Accessory 4', x: 49, y: -60, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'paladin',
+              name: 'Paladin',
+              description:'Paladins are the leaders of armies and use their formidable mystical skills to manage troops and crush the enemy.',
+              archetype:'fighter',
+              layers: {
+                  female: [
+                      { part: 'Skin', x: 26, y: -8, def: 0xFFFFFF },
+                      { part: 'Hair', x: 14, y: 0, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 52, y: -37, def: 0xFFFFFF },
+                      { part: 'Lip', x: 69, y: -66, def: 0xFFFFFF },
+                      { part: 'Eye', x: 60, y: -37, def: 0xFFFFFF },
+                      { part: 'Clothes 1', x: 10, y: -59, def: 0xFFFFFF },
+                      { part: 'Clothes 2', x: 46, y: -87, def: 0xFFFFFF },
+                      { part: 'Trim', x: 0, y: -43, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Skin', x: 23, y: -12, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 34, y: -45, def: 0xFFFFFF },
+                      { part: 'Eye', x: 36, y: -45, def: 0xFFFFFF },
+                      { part: 'Hair', x: 27, y: 0, def: 0xFFFFFF },
+                      { part: 'Clothes 1', x: 0, y: -75, def: 0xFFFFFF },
+                      { part: 'Trim 1', x: 1, y: -57, def: 0xFFFFFF },
+                      { part: 'Clothes 2', x: 36, y: -81, def: 0xFFFFFF },
+                      { part: 'Trim 2', x: 19, y: -105, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'singingaxe',
+              name: 'Singing Axe',
+              description:'Carrying only axes, they long for bloodbaths and vow their existence to making it happen.',
+              archetype:'rogue',
+              layers: {
+                  female: [
+                      { part: 'Skin', x: 28, y: -42, def: 0xFFFFFF },
+                      { part: 'Mouth', x: 58, y: -86, def: 0xFFFFFF },
+                      { part: 'Lip', x: 55, y: -85, def: 0xFFFFFF },
+                      { part: 'Eye', x: 43, y: -59, def: 0xFFFFFF },
+                      { part: 'Accessory 1', x: 30, y: 0, def: 0xFFFFFF },
+                      { part: 'Accessory 2', x: 0, y: -25, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Skin', x: 22, y: -33, def: 0xFFFFFF },
+                      { part: 'Mouth', x: 52, y: -74, def: 0xFFFFFF },
+                      { part: 'Eye', x: 41, y: -45, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 12, y: -88, def: 0xFFFFFF },
+                      { part: 'Accessory 1', x: 0, y: -1, def: 0xFFFFFF },
+                      { part: 'Accessory 2', x: 4, y: -22, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'sorcerer',
+              name: 'Sorcerer',
+              description:'Sorcerers use magic to impart curses to their enemies or boost their comrades.',
+              archetype:'spellcaster',
+              layers: {
+                  female: [
+                      { part: 'Accessory', x: 0, y: -1, def: 0xFFFFFF },
+                      { part: 'Skin', x: 37, y: -50, def: 0xFFFFFF },
+                      { part: 'Lip', x: 55, y: -80, def: 0xFFFFFF },
+                      { part: 'Eye', x: 43, y: -55, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 17, y: -23, def: 0xFFFFFF },
+                      { part: 'Trim 1', x: 16, y: -28, def: 0xFFFFFF },
+                      { part: 'Trim 2', x: 59, y: -30, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Accessory', x: 0, y: 0, def: 0xFFFFFF },
+                      { part: 'Skin', x: 37, y: -50, def: 0xFFFFFF },
+                      { part: 'Eye', x: 45, y: -56, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 0, y: -17, def: 0xFFFFFF },
+                      { part: 'Trim 1', x: 3, y: -27, def: 0xFFFFFF },
+                      { part: 'Trim 2', x: 45, y: -34, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'thief',
+              name: 'Thief',
+              description:'Thieves live in the shadow and thus have learned to strike from it, delivering devastating blows to unsuspecting targets.',
+              archetype:'rogue',
+              layers: {
+                  female: [
+                      { part: 'Skin', x: 13, y: -15, def: 0xFFFFFF },
+                      { part: 'Hair', x: 8, y: -1, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 6, y: -87, def: 0xFFFFFF },
+                      { part: 'Accessory', x: 15, y: -75, def: 0xFFFFFF },
+                      { part: 'Trim', x: 52, y: -100, def: 0xFFFFFF },
+                      { part: 'Lip', x: 46, y: -73, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 34, y: -44, def: 0xFFFFFF },
+                      { part: 'Eye', x: 35, y: -43, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Skin', x: 25, y: -27, def: 0xFFFFFF },
+                      { part: 'Hair', x: 20, y: -2, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 13, y: -79, def: 0xFFFFFF },
+                      { part: 'Trim', x: 29, y: -92, def: 0xFFFFFF },
+                      { part: 'Accessory', x: 29, y: -71, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 41, y: -59, def: 0xFFFFFF },
+                      { part: 'Eye', x: 44, y: -61, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF }
+                  ]
+              }
+          },
+          {id: 'warwizard',
+              name: 'War Wizard',
+              description:'Wizards of War are masters of the battlefield, they can both cast offensive spells and defensive spells.',
+              archetype:'spellcaster',
+              layers: {
+                  female: [
+                      { part: 'Clothes 1', x: 2, y: -78, def: 0xFFFFFF },
+                      { part: 'Skin', x: 6, y: -6, def: 0xFFFFFF },
+                      { part: 'Lip', x: 58, y: -65, def: 0xFFFFFF },
+                      { part: 'Hair', x: 0, y: -1, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 43, y: -37, def: 0xFFFFFF },
+                      { part: 'Eye', x: 48, y: -37, def: 0xFFFFFF },
+                      { part: 'Clothes 2', x: 79, y: -114, def: 0xFFFFFF },
+                      { part: 'Trim', x: 7, y: -76, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF },
+                      { part: 'Accessory', x: -15, y: 4, def: 0xFFFFFF }
+                  ],
+                  male: [
+                      { part: 'Eye', x: 2, y: -3, def: 0xFFFFFF },
+                      { part: 'Clothes', x: 2, y: -73, def: 0xFFFFFF },
+                      { part: 'Trim', x: 3, y: -3, def: 0xFFFFFF },
+                      { part: 'Skin', x: 3, y: -3, def: 0xFFFFFF },
+                      { part: 'Hair', x: 28, y: -38, def: 0xFFFFFF },
+                      { part: 'Eyewhite', x: 34, y: -38, def: 0xFFFFFF },
+                      { part: 'Outline', x: 0, y: 0, def: 0xFFFFFF },
+                      { part: 'Accessory', x: -27, y: 1, def: 0xFFFFFF }
+                  ]
+              }
+          },
+      ]
+
+      console.log('Starting Game')
   - name: Pointer
     code: |-
       ct.pointer = {
@@ -11545,41 +12386,11 @@ scripts:
       gameLoopsWait()
 
       function gameSetup(){
-          ct.game.ui.bottom = ct.types.copy('UI-Bottom', 0, 461)
+          
       }
 
       function gameLoop(){
-          // var overlayPos = $('#UI-Overlay').position()
-          // var ctPos = $('#ct>canvas').position()
-          // var unitSize = (ct.height/ct.room.height)
-          // if(overlayPos.left != ctPos.left || overlayPos.top != ctPos.top){
-          //     $('#UI-Overlay').css({top:ctPos.top, left:ctPos.left})
-          //     if(ct.game.ui.overlay.length){
-          //         for(var uiElement of ct.game.ui.overlay){
-          //             $(uiElement.element).css({top:uiElement.options.y*unitSize, left:uiElement.options.x*unitSize})
-          //             uiElement.element.attr('style', `
-          //                 background-color: rgba(0,0,0,0);
-          //                 height: ${uiElement.options.height*unitSize}px !important;
-          //                 width: ${uiElement.options.width*unitSize}px !important;
-          //                 top: ${uiElement.options.y*unitSize}px;
-          //                 left: ${uiElement.options.x*unitSize}px;
-          //                 ${uiElement.options.font ? `
-          //                 font: ${uiElement.options.font.fontWeight} ${uiElement.options.font.fontSize*unitSize}px/${uiElement.options.font.lineHeight*unitSize}px ${uiElement.options.font.fontFamily};
-          //                 color: ${uiElement.options.font.fill};
-          //                 text-shadow: ${Math.round(uiElement.options.font.dropShadowDistance*Math.cos(uiElement.options.font.dropShadowAngle*(180/Math.PI)))}px ${Math.round(uiElement.options.font.dropShadowDistance*Math.sin(uiElement.options.font.dropShadowAngle*(180/Math.PI)))}px ${uiElement.options.font.dropShadowDistance}px ${uiElement.options.font.dropShadowColor};
-          //                 ` : ''}
-          //             `)
-          //         }
-          //     }
-          // }
-          // for(var [i, uiElement] of ct.game.ui.overlay.entries()){
-          //     if(uiElement.kill){
-          //         $(uiElement.element).remove()
-          //         ct.game.ui.overlay.splice(i,1)
-          //         console.log(ct.game.ui.overlay)
-          //     }
-          // }
-          setTimeout(gameLoop, ct.delta)
+          // setTimeout(gameLoop, ct.delta)
       }
   - name: Extras
     code: ''
