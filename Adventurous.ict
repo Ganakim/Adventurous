@@ -10674,13 +10674,14 @@ types:
     lastmod: 1587275598940
   - name: UI-Bottom
     depth: 3
-    oncreate: |-
+    oncreate: >-
       this.portraits = []
-      this.log = ct.types.copy('colorPixel', 0, this.y)
-      this.log.width = 192
-      this.log.tint = 0x101010
-      this.log.depth = -10
-      this.log.labels = [[[]]]
+
+      ct.game.ui.log = ct.game.addUIElement2('img', {x:0, y:this.y, depth:-10,
+      width:192, tint:0x101010})
+
+      ct.game.ui.log.labels = [[[]]]
+
       ct.game.drawParty = ()=>{
           if(this.portraits.length){
               for(var portrait of this.portraits){
@@ -10706,10 +10707,11 @@ types:
               this.addChild(portrait)
           })
       }
+
       ct.game.drawLogs = ()=>{
           if(ct.game.logs.length){
-              this.log.labels.map(a=>a.map(b=>b.map(c=>c.kill=true)))
-              this.log.labels = [[[]]]
+              ct.game.ui.log.labels.map(a=>a.map(b=>b.map(c=>c.kill=true)))
+              ct.game.ui.log.labels = [[[]]]
               var y = 5
               ct.game.logs.map(log=>{
                   var x = 5
@@ -10738,7 +10740,6 @@ types:
                       }
                       return parsedPart
                   }).map((part, i)=>{
-                      console.log(part)
                       var style = ct.styles.get('Log', true)
                       style.fill = part.color || style.fill
                       part.text.split(' ').map(word=>{
@@ -10749,7 +10750,7 @@ types:
                               style.wordWrap = doesWrap
                               return width
                           }
-                          var currentLog = this.log.labels[this.log.labels.length-1]
+                          var currentLog = ct.game.ui.log.labels[ct.game.ui.log.labels.length-1]
                           var currentLine = currentLog[currentLog.length-1]
                           var currentLabel = currentLine[currentLine.length-1]
                           var checkText = currentLine.map(a=>a.text).join(' ').split(' ')
@@ -10764,7 +10765,7 @@ types:
                                   currentLine = currentLog[currentLog.length-1]
                               }
                               currentLabel = ct.game.addUIElement2('label', {x:x, y:y, depth:-9, text:word, style:style})
-                              this.log.addChild(currentLabel)
+                              ct.game.ui.log.addChild(currentLabel)
                               currentLine.push(currentLabel)
                           }else{
                               currentLabel.text += ' ' + word
@@ -10775,71 +10776,28 @@ types:
                   })
                   y += 5
               })
-              console.log('Parsed:',this.log.labels.map(a=>a.map(b=>b.map(c=>c.text))))
-              // this.log.logs.map(a=>a.kill=true)
-              // this.log.logs = []
-              // var y = this.log.y - 20
-              // for(var [h, log] of ct.game.logs.entries()){
-              //     var parsed = [[]]
-              //     var testStyle = ct.styles.get('Log', true)
-              //     testStyle.wordWrap = false
-              //     for(var [i, line] of log.entries()){
-              //         var prevFormat
-              //         for(var [j, word] of line.entries()){
-              //             var style = ct.styles.get('Log',true)
-              //             if(line.join(' ').match(/-\[[0-9a-zA-Z_-]*:[^\]-]*]-/)){
-              //                 console.log(word, /-\[([0-9a-zA-Z_-]*):/.exec(word))
-              //                 var link = {kind:word.match(/-\[([0-9a-zA-Z_-]*):/)[1], id:word.match(/-\[[0-9a-zA-Z_-]*:([^\]-]*)]-/)[1]}
-              //                 style.fill = link.kind.match(/0x[[:xdigit:]]{6}/) ? link.kind : 0x50A0FF
-              //                 word = word.replace(/-\[[a-z]*:/,'')
-              //                 word = word.replace(']-','')
-              //             }
-              //             if(!parsed[parsed.length-1][0]){
-              //                 y += (style.lineHeight + 5)
-              //                 parsed[parsed.length-1].push(ct.game.addUIElement2('label', {x:3, y:y, text:'', depth:-9, style:style}))
-              //             }
-              //             var currentLabel = parsed[parsed.length-1][parsed[parsed.length-1].length-1]
-              //             if(prevFormat === undefined || ((line.join(' ').match(/(-\[[0-9a-zA-Z_-]*:[^\]-]*]-){1}/g) ? true : false) === prevFormat)){
-              //                 currentLabel.text += ((currentLabel.text ? ' ' : '') + word)
-              //             }else{
-              //                 parsed[parsed.length-1].push(ct.game.addUIElement2('label', {x:3+PIXI.TextMetrics.measureText(parsed[parsed.length-1].map(a=>a.text).join(' ')+' ', new PIXI.TextStyle(testStyle)).width, y:y, text:word, depth:-9, style:style}))
-              //             }
-              //             currentLabel = parsed[parsed.length-1][parsed[parsed.length-1].length-1]
-              //             if(PIXI.TextMetrics.measureText(parsed[parsed.length-1].map(a=>a.text).join(' '), new PIXI.TextStyle(testStyle)).width > style.wordWrapWidth){
-              //                 y += style.lineHeight
-              //                 currentLabel.text = currentLabel.text.split(' ').slice(0, -1).join(' ').trim()
-              //                 if(!currentLabel.text){
-              //                     currentLabel.kill = true
-              //                     parsed[parsed.length-1].pop()
-              //                 }
-              //                 parsed.push([ct.game.addUIElement2('label', {x:3, y:y, text:word, style:style, depth:-9})])
-              //             }
-              //             prevFormat = line.join(' ').match(/(-\[[^\]-]*]-){1}/g) ? true : false
-              //         }
-              //     }
-              //     console.log('parsed:',parsed)
-              //     parsed.map(a=>a.map(b=>{
-              //         this.log.logs.push(b)
-              //     }))
-              // }
+              // console.log('Parsed:',ct.game.ui.log.labels.map(a=>a.map(b=>b.map(c=>c.text))))
           }
       }
+
       ct.game.clearLogs = ()=>{
           ct.game.logs = []
-          this.log.logs.map(a=>a.kill=true)
-          this.log.logs = []
+          ct.game.ui.log.labels.map(a=>a.map(b=>b.map(c=>c.kill=true)))
+          ct.game.ui.log.labels = [[[]]]
       }
+
       ct.game.drawLogs()
+
       ct.game.drawParty()
     onstep: |-
-      if(ct.pointer.hovers(this.log)){
+      if(ct.pointer.hovers(ct.game.ui.log.hitbox)){
           var scrollSpeed = 5
-          if((this.log.y + (ct.actions.scroll.value * scrollSpeed)) < (this.y)+scrollSpeed){
-              this.log.y += (ct.actions.scroll.value * scrollSpeed)
-              this.log.labels.map(a=>a.y += (ct.actions.scroll.value * scrollSpeed))
+          if(ct.actions.scroll.value && ct.game.ui.log.y + (ct.actions.scroll.value * scrollSpeed) <= this.y){
+              ct.game.ui.log.y += (ct.actions.scroll.value * scrollSpeed)
+              ct.game.ui.log.labels.map(a=>a.map(b=>b.map(c=>c.y += (ct.actions.scroll.value * scrollSpeed))))
           }
       }
-      this.log.height = ct.roomHeight - this.log.y
+      ct.game.ui.log.hitbox.height = ct.roomHeight - ct.game.ui.log.y
     ondraw: ''
     ondestroy: ''
     uid: a5847cf4-5e0e-4e62-a414-cb5626b58e70
